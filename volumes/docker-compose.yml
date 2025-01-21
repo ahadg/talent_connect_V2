@@ -1,0 +1,163 @@
+version : '1.1'
+
+services:
+  redis : 
+    container_name: redis_container
+    image : redis:alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --loglevel warning
+    volumes:
+      - ./docker-volumes/cache:/data
+  
+  mongodb:
+    container_name : mongodb_container
+    image : mongo:latest
+    restart : always
+    ports:
+      - '27017:27017'
+    volumes:
+      - ./docker-volumes/data:/data/db
+    # enviroment : 
+      
+
+  mysql:
+    container_name : mysql_container
+    image : mysql
+    restart : always
+    environment:
+      MYSQL_ROOT_PASSWORD: api
+      MYSQL_DATABASE: jobber_auth
+      MYSQL_USER: jobber
+      MYSQL_PASSWORD: api
+    ports : 
+      - '3306:3306'
+    volumes :
+      - ./docker-volumes/mysql:/var/lib/mysql
+
+  postgres:
+    container_name : postgres_container
+    image : postgres
+    restart : always
+    # set shared memory limit when using docker-compose
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: api
+      POSTGRES_DB: jobber_reviews
+      POSTGRES_USER: jobber
+    ports : 
+      - '5432:5432'
+    volumes :
+      - ./docker-volumes/postgres:/var/lib/postgresql
+
+  rabbitmq:
+    container_name : rabbitmq_container
+    image : rabbitmq:3.13.0-rc.1-management-alpine
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=jobber
+      - RABBITMQ_DEFAULT_PASS=jobberpass
+    ports:
+      # AMQP protocol port
+      - '5672:5672'
+      # management dashboard ui
+      - '15672:15672'
+
+  elasticsearch:
+    container_name : elasticsearch_container
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    restart: always
+    environment:
+      ES_JAVA_OPTS: -Xmx1g -Xms1g
+      bootstrap.memory_lock: "true"
+      discovery.type: single-node
+      network.host: 0.0.0.0
+      transport.host: 127.0.0.1
+      http.host: 0.0.0.0
+      xpack.security.enabled: "false"
+      xpack.security.authc.api_key.enabled: "true"
+      xpack.monitoring.collection.enabled: "true"
+      xpack.security.enrollment.enabled: "true"
+      # xpack.security.authc.token.enabled: "true"
+      # ELASTIC_PASSWORD: admin1234
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    volumes:
+      - ./docker-volumes/elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+  kibana:
+    container_name: kibana_container
+    image: docker.elastic.co/kibana/kibana:8.16.1
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS:["http://elasticsearch_container:9200"]
+    ports:
+      - 5601:5601
+    networks:
+      - elastic
+    volumes:
+      - ./kibana.yml:/usr/share/kibana/config/kibana.yml:ro # read only
+    depends_on:
+      - elasticsearch
+
+  gateway:
+    container_name: gateway_container
+    image: notifications:latest 
+    build:
+      context: '../server/1-notification-service'
+      dockerfile: Dockerfile.dev  # corrected from dockerFile to dockerfile
+    restart: always
+    ports:
+      - '4001:4001'
+    environment:
+       - ENABLE_APM=0
+       - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
+       - JWT_TOKEN=8db8f85991bb28f45ac0107f2a1b349c
+       - NODE_ENV=development
+       - SECRET_KEY_ONE=032c5c3cfc37938ae6dd43d3a3ec7834
+       - SECRET_KEY_TWO=d66e377018c0bc0b5772bbc9b131e6d9
+       - CLIENT_URL=http://localhost:3000
+       - AUTH_BASE_URL=http://localhost:4002
+       - USERS_BASE_URL=http://localhost:4003
+       - GIG_BASE_URL=http://localhost:4004
+       - MESSAGE_BASE_URL=http://localhost:4005
+       - ORDER_BASE_URL=http://localhost:4006
+       - REVIEW_BASE_URL=http://localhost:4007
+       - REDIS_HOST=redis://redis_container:6379
+       - ELASTIC_SEARCH_URL=http://elasticsearch_container:9200
+       - ELASTIC_APM_SERVER_URL=http://localhost:8200
+       - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+
+  notifications:
+    container_name: notification_container
+    image: notifications:latest 
+    # build:
+    #   context: '../server/2-notification-service'
+    #   dockerfile: Dockerfile.dev  # corrected from dockerFile to dockerfile
+    restart: always
+    ports:
+      - '4001:4001'
+    environment:
+      - ENABLE_APM=0
+      - NODE_ENV=development
+      - CLIENT_URL=http://localhost:3000
+      - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@localhost:5672
+      - SENDER_EMAIL=cleta.ebert@ethereal.email
+      - SENDER_EMAIL_PASSWORD=5ZYPwPBPGa7DYGwnAn
+      - ELASTIC_SEARCH_URL=http://localhost:9200
+      - ELASTIC_APM_SERVER_URL=http://localhost:8200
+      - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+
+networks:
+  elastic:
+    name: elastic
+
+# docker compose up -d redis mongodb mysql postgres rabbitmq elasticsearch kibana
