@@ -1,4 +1,4 @@
-import { config } from '@gateway/config';
+import { config } from '../config';
 import { IAuthPayload } from '@ahadg/jobber-shared';
 import { Request, Response, NextFunction } from 'express';
 import { verify } from 'jsonwebtoken';

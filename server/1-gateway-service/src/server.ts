@@ -13,6 +13,7 @@ import http from 'http';
 import { config } from "./config";
 import { elasticSearch } from "./elasticsearch";
 import { appRoutes } from "./routes";
+import { axiosAuthInstance } from "./services/api/auth.service";
 
 const SERVER_PORT = 4000;
 //const DEFAULT_ERROR_CODE = 500;
@@ -55,6 +56,13 @@ export class GatewayServer {
           credentials: true,
           methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
         })) 
+
+        app.use((req : Request, _res : Response, next : NextFunction) => {
+          if(req.session?.jwt) {
+            axiosAuthInstance.defaults.headers["Authorization"] = `Bearer ${req.session.jwt}`
+          }
+          next()
+        })
     }
     private standardMiddleware(app: Application): void {
       app.use(compression());

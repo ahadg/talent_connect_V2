@@ -1,5 +1,5 @@
 import express, { Express} from 'express'
-import {GatewayServer} from '@gateway/server'
+import {GatewayServer} from './server'
 
 class Application {
   public initialize(): void {
