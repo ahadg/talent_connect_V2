@@ -7,7 +7,7 @@ import cors from 'cors';
 import { config } from "./config";
 import compression from "compression";
 import { verify } from "jsonwebtoken";
-import { checkConnection } from "./elasticsearch";
+import { checkConnection, createIndex } from "./elasticsearch";
 import { CustomError, IErrorResponse } from "./error-handler";
 import http from 'http';
 import { appRoutes } from "./routes";
@@ -67,7 +67,7 @@ function routesMiddleware(app: Application): void {
   
   function startElasticSearch(): void {
     checkConnection();
-    //createIndex('gigs');
+    createIndex('gigs');
   }
   
   function authErrorHandler(app: Application): void {

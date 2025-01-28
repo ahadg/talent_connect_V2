@@ -67,6 +67,7 @@ class AuthService {
   }
 
   async getGigs(query: string, from: string, size: string, type: string): Promise<AxiosResponse> {
+    console.log("sending_request",`${config.AUTH_BASE_URL}/api/v1/auth`,`/search/gig/${from}/${size}/${type}?${query}`)
     const response: AxiosResponse = await this.axiosService.axios.get(`/search/gig/${from}/${size}/${type}?${query}`);
     return response;
   }
