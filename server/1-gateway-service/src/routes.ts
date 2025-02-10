@@ -6,8 +6,8 @@ import { authMiddleware } from './services/auth-middleware';
 import { searchRoutes } from './routes/search';
 import { buyerRoutes } from './routes/buyer';
 import { sellerRoutes } from './routes/seller';
-// import { gigRoutes } from './routes/gig';
-// import { messageRoutes } from './routes/message';
+import { gigRoutes } from './routes/gig';
+import { messageRoutes } from './routes/message';
 // import { orderRoutes } from './routes/order';
 // import { reviewRoutes } from './routes/review';
 
@@ -21,8 +21,8 @@ export const appRoutes = (app: Application) => {
   app.use(BASE_PATH, authMiddleware.verifyUser, currentUserRoutes.routes());
   app.use(BASE_PATH, authMiddleware.verifyUser, buyerRoutes.routes());
   app.use(BASE_PATH, authMiddleware.verifyUser, sellerRoutes.routes());
-//   app.use(BASE_PATH, authMiddleware.verifyUser, gigRoutes.routes());
-//   app.use(BASE_PATH, authMiddleware.verifyUser, messageRoutes.routes());
+  app.use(BASE_PATH, authMiddleware.verifyUser, gigRoutes.routes());
+  app.use(BASE_PATH, authMiddleware.verifyUser, messageRoutes.routes());
 //   app.use(BASE_PATH, authMiddleware.verifyUser, orderRoutes.routes());
 //   app.use(BASE_PATH, authMiddleware.verifyUser, reviewRoutes.routes());
 };

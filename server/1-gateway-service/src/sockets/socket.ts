@@ -2,6 +2,7 @@ import { config } from '../config';
 import { GatewayCache } from '../redis/gateway.cache';
 import { IMessageDocument, IOrderDocument, IOrderNotifcation, winstonLogger } from '@ahadg/jobber-shared';
 import { Server, Socket } from 'socket.io';
+// socket.io-client , to communicate from gateway to other services
 import { io, Socket as SocketClient } from 'socket.io-client';
 import { Logger } from 'winston';
 
@@ -21,6 +22,7 @@ export class SocketIOAppHandler {
   }
 
   public listen(): void {
+    // calling twice, in the constructor also, file location, chat microservice -> 4. -> 15:58
     this.chatSocketServiceIOConnections();
     this.orderSocketServiceIOConnections();
     this.io.on('connection', async (socket: Socket) => {
@@ -46,6 +48,7 @@ export class SocketIOAppHandler {
   }
 
   private chatSocketServiceIOConnections(): void {
+    // socket.io-client , to communicate from gateway to other services
     chatSocketClient = io(`${config.MESSAGE_BASE_URL}`, {
       transports: ['websocket', 'polling'],
       secure: true
@@ -66,16 +69,22 @@ export class SocketIOAppHandler {
     });
 
     // custom events
+    // other services are connected to this socket, messages will be send here
     chatSocketClient.on('message received', (data: IMessageDocument) => {
+      // sending data to frontend
       this.io.emit('message received', data);
     });
 
+    
+ // other services are connected to this socket, messages will be send here
     chatSocketClient.on('message updated', (data: IMessageDocument) => {
+       // sending data to frontend
       this.io.emit('message updated', data);
     });
   }
 
   private orderSocketServiceIOConnections(): void {
+    //  socket.io-client , to communicate from gateway to other services
     orderSocketClient = io(`${config.ORDER_BASE_URL}`, {
       transports: ['websocket', 'polling'],
       secure: true
@@ -96,7 +105,9 @@ export class SocketIOAppHandler {
     });
 
     // custom event
+    // // other services are connected to this socket, messages will be send here
     orderSocketClient.on('order notification', (order: IOrderDocument, notification: IOrderNotifcation) => {
+        // sending data to frontend
       this.io.emit('order notification', order, notification);
     });
   }
