@@ -8,8 +8,8 @@ import { buyerRoutes } from './routes/buyer';
 import { sellerRoutes } from './routes/seller';
 import { gigRoutes } from './routes/gig';
 import { messageRoutes } from './routes/message';
-// import { orderRoutes } from './routes/order';
-// import { reviewRoutes } from './routes/review';
+import { orderRoutes } from './routes/order';
+import { reviewRoutes } from './routes/review';
 
 const BASE_PATH = '/api/gateway/v1';
 
@@ -23,6 +23,6 @@ export const appRoutes = (app: Application) => {
   app.use(BASE_PATH, authMiddleware.verifyUser, sellerRoutes.routes());
   app.use(BASE_PATH, authMiddleware.verifyUser, gigRoutes.routes());
   app.use(BASE_PATH, authMiddleware.verifyUser, messageRoutes.routes());
-//   app.use(BASE_PATH, authMiddleware.verifyUser, orderRoutes.routes());
-//   app.use(BASE_PATH, authMiddleware.verifyUser, reviewRoutes.routes());
+  app.use(BASE_PATH, authMiddleware.verifyUser, orderRoutes.routes());
+  app.use(BASE_PATH, authMiddleware.verifyUser, reviewRoutes.routes());
 };
