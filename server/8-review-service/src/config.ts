@@ -12,7 +12,9 @@ if (process.env.ENABLE_APM === '1') {
     active: true,
     captureBody: 'all',
     errorOnAbortedRequests: true,
-    captureErrorLogStackTraces: 'always'
+    captureErrorLogStackTraces: 'always',
+    username : "elastic",
+    password : 'admin1234'
   });
 }
 

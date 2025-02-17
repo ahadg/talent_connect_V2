@@ -10,7 +10,7 @@ COPY package.json ./
 COPY tsconfig.json ./
 COPY .npmrc ./
 COPY src ./src
-COPY tools ./tools
+# # COPY tools ./tools
 
 RUN npm install
 RUN npm install -g nodemon

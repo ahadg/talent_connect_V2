@@ -1,4 +1,4 @@
-version : '1.1'
+# version : '1.1'
 
 services:
   redis : 
@@ -75,12 +75,12 @@ services:
       network.host: 0.0.0.0
       transport.host: 127.0.0.1
       http.host: 0.0.0.0
-      xpack.security.enabled: "false"
+      xpack.security.enabled: "true"
       xpack.security.authc.api_key.enabled: "true"
       xpack.monitoring.collection.enabled: "true"
       xpack.security.enrollment.enabled: "true"
-      # xpack.security.authc.token.enabled: "true"
-      # ELASTIC_PASSWORD: admin1234
+      xpack.security.authc.token.enabled: "true"
+      ELASTIC_PASSWORD: admin1234
     ports:
       - '9200:9200'
       - '9300:9300'
@@ -88,20 +88,78 @@ services:
       - ./docker-volumes/elasticsearch-data:/usr/share/elasticsearch/data
     networks:
       - elastic
-
+  # running this command in elastic search container to set the username and  password, kibana_system is username , password is 'kibana'
+  # curl -s -X POST -u elastic:admin1234 -H "Content-Type: application/json" http://localhost:9200/_security/user/kibana_system/_password -d "{\"password\":\"kibana\"}"
   kibana:
     container_name: kibana_container
     image: docker.elastic.co/kibana/kibana:8.16.1
     restart: always
     environment:
-      - ELASTICSEARCH_HOSTS:["http://elasticsearch_container:9200"]
+      - ELASTICSEARCH_HOSTS=["http://elasticsearch_container:9200"]
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=admin1234
+      - ELASTICSEARCH_SERVICEACCOUNT_TOKEN=AAEAAWVsYXN0aWMva2liYW5hL2pvYmJlci1raWJhbmE6cWxYWlFacVZSbU9aUTFzbkhJR052UQ
+      - XPACK_FLEET_AGENTS_ELASTICSEARCH_HOSTS=["http://elasticsearch_container:9200"]
     ports:
       - 5601:5601
     networks:
       - elastic
     volumes:
-      - ./kibana.yml:/usr/share/kibana/config/kibana.yml:ro # read only
+      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro" # read only
     depends_on:
+      - elasticsearch
+
+  metricbeat:
+    container_name: metricbeat_container
+    image: docker.elastic.co/beats/metricbeat:8.16.1
+    user: root
+    ports:
+      - 5066:5066
+    networks:
+      - elastic
+    volumes:
+      - ./kibana.yml:/usr/share/kibana/config/kibana.yml:ro # read only
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    command: ["--strict.perms=false","-system.hostfs=/hostfs"]
+    depends_on:
+      - elasticsearch
+  
+  apmServer:
+    image: docker.elastic.co/apm/apm-server:8.12.2
+    container_name: apm_server_container
+    ports:
+      - 8200:8200
+    volumes:
+      - ./apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    networks:
+      - elastic
+    command: >
+      apm-server -e
+        -E apm-server.rum.enabled=true
+        -E setup.kibana.host=kibana_container:5601
+        -E setup.template.settings.index.number_of_replicas=0
+        -E apm-server.kibana.enabled=true
+        -E apm-server.kibana.host=kibana_container:5601
+        -E apm-server.kibana.protocol=http
+        -E strict.perms=false
+        -E apm-server.auth.anonymous.enabled=true
+
+  heartbeat:
+    container_name: heartbeat_container
+    image: docker.elastic.co/beats/heartbeat:8.12.2
+    user: root
+    hostname: heartbeat
+    cap_add:
+      - NET_RAW
+    networks:
+      - elastic
+    command: ["--strict.perms=false"]
+    volumes:
+      - ./heartbeat.yml:/usr/share/heartbeat/heartbeat.yml:ro
+    depends_on: 
       - elasticsearch
 
   gateway:
@@ -112,7 +170,7 @@ services:
       dockerfile: Dockerfile.dev  # corrected from dockerFile to dockerfile
     restart: always
     ports:
-      - '4001:4001'
+      - '4000:4000'
     environment:
        - ENABLE_APM=0
        - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
@@ -128,7 +186,7 @@ services:
        - ORDER_BASE_URL=http://localhost:4006
        - REVIEW_BASE_URL=http://localhost:4007
        - REDIS_HOST=redis://redis_container:6379
-       - ELASTIC_SEARCH_URL=http://elasticsearch_container:9200
+       - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
        - ELASTIC_APM_SERVER_URL=http://localhost:8200
        - ELASTIC_APM_SECRET_TOKEN=
     depends_on:
@@ -150,7 +208,7 @@ services:
       - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@rabbitmq_container:5672
       - SENDER_EMAIL=cleta.ebert@ethereal.email
       - SENDER_EMAIL_PASSWORD=5ZYPwPBPGa7DYGwnAn
-      - ELASTIC_SEARCH_URL=http://localhost:9200
+      - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
       - ELASTIC_APM_SERVER_URL=http://localhost:8200
       - ELASTIC_APM_SECRET_TOKEN=
     depends_on:
@@ -211,6 +269,120 @@ services:
       depends_on:
         - elasticsearch
         - mysql
+  
+  gig:
+    container_name: gig_container
+    build:
+      context: ../server/5-gig-service
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - 4004:4004
+    env_file: ../server/5-gig-service/.env
+    environment:
+      - ENABLE_APM=1
+      - DATABASE_URL=mongodb://mongodb_container:27017/jobber-gig
+      - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
+      - JWT_TOKEN=8db8f85991bb28f45ac0107f2a1b349c
+      - NODE_ENV=development
+      - AP_GATEWAY_URL=http://gateway_container:4000
+      - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@rabbitmq_container:5672
+      - CLOUD_NAME=dyamr9ym3
+      - CLOUD_API_KEY=385269193982147
+      - CLOUD_API_SECRET=-h9hU43QMy68AcIaMyP0ULKbibI
+      - REDIS_HOST=redis://redis_container:6379
+      - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
+      - ELASTIC_APM_SERVER_URL=http://apm_server_container:8200
+      - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+      - mongodb
+  
+  chat:
+    container_name: chat_container
+    build:
+      context: ../server/6-chat-service
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - 4005:4005
+    env_file: ../server/6-chat-service/.env
+    environment:
+      - ENABLE_APM=1
+      - DATABASE_URL=mongodb://mongodb_container:27017/jobber-chat
+      - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
+      - JWT_TOKEN=8db8f85991bb28f45ac0107f2a1b349c
+      - NODE_ENV=development
+      - AP_GATEWAY_URL=http://gateway_container:4000
+      - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@rabbitmq_container:5672
+      - CLOUD_NAME=dyamr9ym3
+      - CLOUD_API_KEY=385269193982147
+      - CLOUD_API_SECRET=-h9hU43QMy68AcIaMyP0ULKbibI
+      - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
+      - ELASTIC_APM_SERVER_URL=http://apm_server_container:8200
+      - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+      - mongodb
+  
+  order:
+    container_name: order_container
+    build:
+      context: ../server/7-order-service
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - 4006:4006
+    env_file: ../server/7-order-service/.env
+    environment:
+      - ENABLE_APM=1
+      - DATABASE_URL=mongodb://mongodb_container:27017/jobber-chat
+      - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
+      - JWT_TOKEN=8db8f85991bb28f45ac0107f2a1b349c
+      - NODE_ENV=development
+      - AP_GATEWAY_URL=http://gateway_container:4000
+      - CLIENT_URL=http://localhost:3000
+      - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@rabbitmq_container:5672
+      - STRIPE_API_KEY=sk_test_51OAXs6DTglvMeJPrlX1Lp9Mw7aXwlBbFJOLQdlkFv5mRKPkQdFrxvYN68xZ54wBr6VbP44khSM5UpPtfaixlMgcW00CIZEpmn5
+      - CLOUD_NAME=dyamr9ym3
+      - CLOUD_API_KEY=385269193982147
+      - CLOUD_API_SECRET=-h9hU43QMy68AcIaMyP0ULKbibI
+      - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
+      - ELASTIC_APM_SERVER_URL=http://apm_server_container:8200
+      - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+      - mongodb
+  
+  review:
+    container_name: review_container
+    build:
+      context: ../server/8-review-service
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - 4007:4007
+    env_file: ../server/8-review-service/.env
+    environment:
+      - ENABLE_APM=1
+      - DATABASE_HOST=192.168.0.42
+      - DATABASE_USER=jobber
+      - DATABASE_PASSWORD=api
+      - DATABASE_NAME=jobber_reviews
+      - GATEWAY_JWT_TOKEN=1282722b942e08c8a6cb033aa6ce850e
+      - JWT_TOKEN=8db8f85991bb28f45ac0107f2a1b349c
+      - NODE_ENV=development
+      - AP_GATEWAY_URL=http://gateway_container:4000
+      - RABBITMQ_ENDPOINT=amqp://jobber:jobberpass@rabbitmq_container:5672
+      - CLOUD_NAME=dyamr9ym3
+      - CLOUD_API_KEY=385269193982147
+      - CLOUD_API_SECRET=-h9hU43QMy68AcIaMyP0ULKbibI
+      - ELASTIC_SEARCH_URL=http://elastic:admin1234@elasticsearch_container:9200
+      - ELASTIC_APM_SERVER_URL=http://apm_server_container:8200
+      - ELASTIC_APM_SECRET_TOKEN=
+    depends_on:
+      - elasticsearch
+      - postgres
 
 networks:
   elastic:
